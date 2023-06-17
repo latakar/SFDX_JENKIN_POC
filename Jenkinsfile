@@ -22,8 +22,20 @@ node {
         // when running in multi-branch job, one must issue this command
         checkout scm
     }
-
+  
     withCredentials([file(credentialsId: JWT_KEY_CRED_ID, variable: 'jwt_key_file')]) {
+	stage('Authorize DevHub') {   
+	    rc = command "${toolbelt}/sfdx auth:jwt:grant --instanceurl ${SFDC_HOST} --clientid ${CONNECTED_APP_CONSUMER_KEY} --username ${HUB_ORG} --jwtkeyfile ${jwt_key_file} --setdefaultdevhubusername --setalias HubOrg"
+	    if (rc != 0) {
+	        error 'Salesforce dev hub org authorization failed.'
+	    }
+	}
+	stage('Create Test Scratch Org') {
+	    rc = command "${toolbelt}/sfdx force:org:create --targetdevhubusername  ${HUB_ORG} --setdefaultusername --definitionfile config/project-scratch-def.json --setalias ciorg --wait 10 --durationdays 1"
+	    if (rc != 0) {
+	        error 'Salesforce test scratch org creation failed.'
+	    }
+	}
         stage('Deploye Code') {
             if (isUnix()) {
                 rc = sh returnStatus: true, script: "${toolbelt} force:auth:jwt:grant --clientid ${CONNECTED_APP_CONSUMER_KEY} --username ${HUB_ORG} --jwtkeyfile ${jwt_key_file} --setdefaultdevhubusername --instanceurl ${SFDC_HOST}"
